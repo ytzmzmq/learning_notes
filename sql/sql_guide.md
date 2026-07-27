@@ -220,6 +220,110 @@ create table depts(
 
 ---
 
+# 三、DML 语言（数据操作）
+
+DML（Data Manipulation Language）用于操作表中的数据：添加（INSERT）、更新（UPDATE）、删除（DELETE）。
+
+## 3.1 插入数据（INSERT）
+
+两种方式：
+- **选择插入**：指定要插入的列名，未指定的列取默认值（或 NULL）。
+- **完全插入**：按表定义顺序为每一列提供值，不可省略任何列。
+
+完全插入时，若主键为 auto_increment，可用 `default`、`null` 或 `0` 占位，MySQL 会自动分配递增值。
+
+**选择插入（指定列）**
+```sql
+insert into departments(department_name, location_id) values("market", 1);
+```
+只插入指定的列，department_id 由自增长自动填充。
+
+**完全插入（default 占位）**
+```sql
+insert into departments values(default, "development", 2);
+```
+
+**完全插入（null 占位）**
+```sql
+insert into departments values(null, "human", 3);
+```
+
+**完全插入（0 占位）**
+```sql
+insert into departments values(0, "teaching", 4);
+```
+三种占位方式效果相同，均触发自增长分配。
+
+## 3.2 列默认值与 default 占位
+
+建表或添加列时可通过 `default` 关键字设定列的默认值。插入数据时，若某列使用 `default` 占位（或选择插入时省略该列），MySQL 自动填入预设的默认值。
+
+**建表时设置列默认值**
+```sql
+create table emp3(
+    emp_id int primary key auto_increment,
+    name varchar(10),
+    address varchar(50) default "unknown"
+);
+```
+
+**添加列时设置默认值**
+```sql
+alter table emp3 add column job_id int default 0;
+```
+
+**选择插入（省略的列自动取默认值）**
+```sql
+insert into emp3(name) values("admin");
+```
+emp_id 自增长，address 取 "unknown"，job_id 取 0。
+
+**完全插入（多列用 default 占位）**
+```sql
+insert into emp3 values(default, "oldlu", default, default);
+```
+所有需要默认值的列统一用 `default` 占位，MySQL 分别填入各自的预设值。
+
+## 3.3 更新数据（UPDATE）
+
+重要原则：UPDATE 必须带 `where` 条件，否则表中所有行都会被更新。
+
+**更新单列**
+```sql
+update emp3 set address = "Beijing" where emp_id = 1;
+```
+
+**同时更新多列（逗号分隔）**
+```sql
+update emp3 set address = "Beijing", job_id = 2 where emp_id = 1;
+```
+set 后面用逗号分隔多个"列 = 值"赋值对。若新值与原值相同，则 Changed 为 0（不产生实际修改）。
+
+## 3.4 删除数据（DELETE / TRUNCATE）
+
+重要原则：DELETE 不带 `where` 条件会删除表中所有数据（逐行删除）。
+
+**带条件删除**
+```sql
+delete from emp3 where emp_id = 1;
+```
+
+**清空整张表（TRUNCATE）**
+```sql
+truncate table emp3;
+```
+
+**DELETE 与 TRUNCATE 的区别：**
+
+| 对比项 | DELETE | TRUNCATE |
+|--------|--------|----------|
+| 速度 | 逐行删除，较慢 | 整体删除，较快 |
+| 日志 | 写服务器 log（可回滚） | 不写 log（不可回滚） |
+| 自增值 | 继续累加 | 重置为初始值 |
+| 条件 | 可带 where 删除部分行 | 只能清空全表 |
+
+---
+
 # 附录：常用关键字与语法速查
 
 ## A. 操作动词（按功能分类）
@@ -227,8 +331,12 @@ create table depts(
 | 功能 | 关键字 | 示例片段 |
 |------|--------|---------|
 | 创建 | `create` | create database / create table |
-| 删除 | `drop` | drop database / drop table / drop column / drop primary key / drop foreign key / drop key |
+| 删除结构 | `drop` | drop database / drop table / drop column / drop primary key / drop foreign key / drop key |
 | 修改结构 | `alter` | alter table ... rename / add / modify / change / drop |
+| 插入数据 | `insert` | insert into 表(列) values(值) |
+| 更新数据 | `update` | update 表 set 列=值 where 条件 |
+| 删除数据 | `delete` | delete from 表 where 条件 |
+| 清空表 | `truncate` | truncate table 表名 |
 | 查看 | `show` | show databases / show tables / show keys from 表名 |
 | 查看列定义 | `desc` | desc 表名（等价于 show columns from） |
 | 切换 | `use` | use 数据库名 |
@@ -268,6 +376,11 @@ create table depts(
 | `not null` / `null` | 非空 / 允许空值 |
 | `constraint 名` | 为约束自定义名称（外键、唯一约束需要） |
 | `default character set` | 指定数据库/表的默认字符集 |
+| `default` | 列默认值 / 插入时占位触发默认值或自增长 |
+| `insert into ... values` | 插入数据 |
+| `update ... set ... where` | 按条件更新数据 |
+| `delete from ... where` | 按条件删除数据 |
+| `truncate table` | 清空全表（不可回滚，重置自增） |
 
 ## E. 约束命名惯例
 
@@ -284,3 +397,6 @@ create table depts(
 - 删除主键前必须先去掉 auto_increment。
 - `show keys` 看不到 NOT NULL，要用 `desc 表名`。
 - 每条语句必须以分号 `;` 结尾。
+- UPDATE / DELETE 忘写 `where` 会作用于全表所有行。
+- 完全插入时列数必须与表定义一致，否则报 "Column count doesn't match"。
+- TRUNCATE 不可回滚，操作前确认是否需要保留数据。
