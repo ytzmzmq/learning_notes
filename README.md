@@ -7,6 +7,7 @@ Personal learning notes collection, organized by subject.
 ```
 learning_notes/
 ├── sql/          ← MySQL / SQL notes
+├── python/       ← Python notes
 └── ...           ← (more subjects to come)
 ```
 
