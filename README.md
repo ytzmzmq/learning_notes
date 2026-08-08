@@ -8,6 +8,7 @@ Personal learning notes collection, organized by subject.
 learning_notes/
 ├── sql/          ← MySQL / SQL notes
 ├── python/       ← Python notes
+├── pytorch/      ← PyTorch notes
 └── ...           ← (more subjects to come)
 ```
 
