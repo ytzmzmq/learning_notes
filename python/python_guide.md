@@ -1,6 +1,6 @@
 # Python 基础语法指南
 
-> 基于 Python 入门第 3 章"数据类型与运算符"的实践整理（01-18 全部小节），分为"基本语法元素"、"数据类型"、"数据类型转换"、"运算符"与"输入语句"五大部分。
+> 基于 Python 学习实践持续整理，涵盖入门第 3 章"数据类型与运算符"（01-18 全部小节）及字符串操作与正则表达式部分，分为"基本语法元素"、"数据类型"、"数据类型转换"、"运算符"、"输入语句"、"字符串操作"与"正则表达式"七大部分。
 
 ---
 
@@ -509,6 +509,154 @@ f-string 的花括号内可以放任何表达式（如 `int(age) + 1`），但�
 
 ---
 
+# 六、字符串操作
+
+## 6.1 索引
+
+用方括号取出字符串中的单个字符。正向索引从 0 开始；负数索引从末尾倒数，`-1` 是最后一个字符。
+
+```python
+name = "ytzmzmq ytjszmq"
+
+a = name[0]    # 'y'，第一位
+b = name[1]    # 't'
+c = name[-1]   # 'q'，最后一位
+```
+
+## 6.2 切片
+
+**基础切片 [start:end]：** 取索引 start 到 end 之间的字符。极其重要的法则是"包头不包尾"（左闭右开区间）——包含 start，不包含 end。
+
+```python
+d = name[3:7]   # 'mzmq'，即索引 3、4、5、6 四个字符
+```
+
+**步长切片 [::step]：** step 指每隔多少个位置取一个。
+
+```python
+e = name[::3]   # 'ymqtz'，每隔两个取一个
+```
+
+步长设为负数（如 `[::-1]`）时从右往左反向截取，常用于反转字符串：
+
+```python
+print(name[::-1])   # 'qmzsjt yqmzmzty'
+```
+
+**完整切片 [start:end:step]：** start:end 规定范围（依然包头不包尾），step 规定该范围内的步长。
+
+```python
+f = name[0:5:2]   # 'yzz'，索引 0-4 范围内隔一个取一个
+```
+
+## 6.3 长度
+
+`len()` 返回字符串长度，从 1 开始计数（而索引从 0 开始）。
+
+```python
+print(len(name))   # 15
+```
+
+## 6.4 拼接与复制
+
+```python
+statement = name + ":ytjszmj"   # + 拼接字符串
+name_3x = 3 * name              # * 把字符串复制 3 份
+```
+
+## 6.5 常用字符串方法
+
+```python
+a = name.upper()                            # 全部转为大写
+b = name.replace("ytzmzmq", "杨韬太强了")    # 替换：旧字符串在前，新的在后
+c = name.find("yt")                         # 查找：返回第一次出现的索引
+d = name.find("YT")                         # -1，不存在（区分大小写）
+```
+
+**split()：** 在指定分隔符处分割字符串，返回列表。语法 `.split(分隔符, 最大分割次数)`，分隔符默认为空白字符，最大分割次数默认无限制。
+
+```python
+print(name.split())          # ['ytzmzmq', 'ytjszmq']，按空白分割
+print(name.split('yt', 2))   # ['', 'zmzmq ', 'jszmq']，最多分 2 次
+print(name.split("yt", 1))   # ['', 'zmzmq ytjszmq']，最多分 1 次
+```
+
+---
+
+# 七、正则表达式
+
+正则表达式是一种用于匹配和处理字符串的工具。Python 通过 `re` 模块提供 search、split、findall、sub 等功能。
+
+## 7.1 导入模块与原始字符串
+
+```python
+import re
+
+sentence_1 = "Yangtao is the most ambitious guy."
+pattern = r"Yangtao"
+print(pattern, type(pattern))   # Yangtao <class 'str'>
+```
+模式前的字母 `r` 代表 raw string（原始字符串）。只要模式里出现反斜杠 `\`（如 `\d`、`\w`、`\b` 等正则专属符号），就必须加 `r`（或者写双反斜杠）。
+
+## 7.2 search()：查找第一个匹配
+
+`search()` 扫描整个字符串，寻找第一个与 pattern 匹配的子串；`match.group()` 用于获取匹配到的部分。
+
+```python
+result = re.search(pattern, sentence_1)
+if result:
+    print("Yangtao found!", result.group())   # Yangtao found! Yangtao
+else:
+    print("Yangtao not found!")
+```
+
+## 7.3 特殊序列
+
+| 序列 | 匹配内容 | 对应大写（取反） |
+|------|---------|----------------|
+| `\d` | 任何数字字符（0-9） | `\D` 任何非数字字符 |
+| `\w` | 任何单词字符（a-z、A-Z、0-9、下划线） | `\W` 任何非单词字符 |
+| `\s` | 任何空白字符（空格、制表符、换行等） | `\S` 任何非空白字符 |
+| `\b` | 单词边界 | `\B` 非单词边界 |
+
+模式里写几个符号就匹配几位，位数必须够：
+
+```python
+Sentence_2 = "Yangtao scores 430 in his exam."
+
+match_2 = re.search(r"\d\d\d", Sentence_2)
+print(match_2.group())   # '430'
+# 若是 \d\d 则只输出 '43'；若是 \d\d\d\d 则匹配不到
+```
+
+## 7.4 findall()：查找所有匹配
+
+`findall()` 找出字符串中所有符合模式的位置，返回列表。
+
+```python
+print(re.findall(r"\W", Sentence_2))   # [' ', ' ', ' ', ' ', ' ', '.']
+```
+
+## 7.5 re.split()：按正则分割
+
+```python
+print(re.split(r"\s", Sentence_2))   # ['Yangtao', 'scores', '430', 'in', 'his', 'exam.']
+```
+
+## 7.6 re.sub()：按正则替换
+
+```python
+pattern_4 = r"yangtao"
+replacement = "Wang Zhetao"
+new_string = re.sub(pattern_4, replacement, Sentence_2, flags=re.IGNORECASE)
+new_string2 = re.sub(pattern_4, replacement, Sentence_2)
+print(new_string)    # 'Wang Zhetao scores 430 in his exam.'
+print(new_string2)   # 原句不变
+```
+`re.sub` 默认严格区分大小写，正则引擎只会寻找完全一模一样的词；传入 `flags=re.IGNORECASE` 才不区分大小写。
+
+---
+
 # 附录：常用关键字与语法速查
 
 ## A. 数据类型速查
@@ -562,7 +710,35 @@ f-string 的花括号内可以放任何表达式（如 `int(age) + 1`），但�
 | `\r` | 光标回到行首覆盖输出 |
 | `\t` | 制表位 |
 
-## F. 易错点备忘
+## F. 字符串操作速查
+
+| 语法 / 方法 | 含义 |
+|------------|------|
+| `s[0]` / `s[-1]` | 正向索引 / 负向索引（-1 为末位） |
+| `s[a:b]` | 切片，包头不包尾 |
+| `s[a:b:n]` | 带步长切片 |
+| `s[::-1]` | 反转字符串 |
+| `len(s)` | 长度，从 1 计数 |
+| `+` / `*` | 拼接 / 复制 |
+| `s.upper()` | 转大写 |
+| `s.replace(旧, 新)` | 替换 |
+| `s.find(子串)` | 返回首次出现的索引，找不到返回 -1 |
+| `s.split(分隔符, 最大次数)` | 分割返回列表 |
+
+## G. 正则表达式速查
+
+| 函数 / 语法 | 含义 |
+|------------|------|
+| `re.search(p, s)` | 找第一个匹配，返回 match 对象 |
+| `m.group()` | 获取匹配到的内容 |
+| `re.findall(p, s)` | 所有匹配，返回列表 |
+| `re.split(p, s)` | 按模式分割 |
+| `re.sub(p, 替换, s, flags=)` | 按模式替换 |
+| `r"..."` | 原始字符串，模式含 `\` 时必须加 r |
+| `flags=re.IGNORECASE` | 不区分大小写 |
+| `\d` `\w` `\s` | 数字 / 单词字符 / 空白（大写取反） |
+
+## H. 易错点备忘
 
 - 字符串必须用成对的引号包裹，忘写或写错引号是最常见的语法错误。
 - 标识符不能以数字开头，不能用关键字，避免与内置函数（如 `all`、`type`）重名。
@@ -579,3 +755,10 @@ f-string 的花括号内可以放任何表达式（如 `int(age) + 1`），但�
 - `and`/`or` 有短路特性，右侧可能根本不执行，依赖右侧副作用要小心。
 - 二进制前缀是 `0b`、八进制 `0o`、十六进制 `0x`（是字母 o 不是数字 0）；`bin()`/`oct()`/`hex()` 返回的是**字符串**，要参与运算需先 `int(x, 进制)` 转回整数。
 - `input()` 的返回值永远是字符串，直接和数字做算术会报 TypeError，必须先 `int()`/`float()` 转换。
+- 切片"包头不包尾"：`s[3:7]` 不包含索引 7 的字符。
+- 字符串索引从 0 开始，`len()` 从 1 计数，两者别混淆。
+- `find()` 区分大小写，找不到返回 -1 而不是报错。
+- `split()` 的第二参数是最大分割次数，剩余部分整体保留在最后一个元素里。
+- 正则模式含反斜杠（`\d`、`\w` 等）必须加 `r` 前缀，否则反斜杠会被转义。
+- `re.sub` 默认区分大小写，要忽略大小写需传 `flags=re.IGNORECASE`。
+- 正则模式的位数必须够：`\d\d\d` 匹配不到四位数字。
