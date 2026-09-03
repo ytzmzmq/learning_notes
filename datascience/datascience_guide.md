@@ -1,0 +1,236 @@
+# 数据科学实践指南
+
+> 基于《数据科学实践与Python应用》第 2 章"向量"的学习实践整理，分为"NumPy 数组与向量运算"与"matplotlib 向量的几何可视化"两大部分。运行环境：numpy 2.3、matplotlib 3.10。
+
+---
+
+# 一、NumPy 数组与向量
+
+## 1.1 创建向量（np.array）
+
+Python 列表用 `[]` 直接书写；NumPy 用 `np.array()` 构建数组。数组的形状决定它是向量、行向量还是列向量：
+
+```python
+import numpy as np
+
+asList = [1, 2, 3]                  # 普通列表
+asArray = np.array([1, 2, 3])       # 一维数组
+rowVec = np.array([[1, 2, 3]])      # 行向量：1 行 3 列
+colVec = np.array([[1], [2], [3]])  # 列向量：3 行 1 列
+```
+
+## 1.2 观察形状（shape）
+
+`np.shape()` 或数组的 `.shape` 属性都可以查看形状；返回的元组按"行数, 列数"给出：
+
+```python
+print(np.shape(asList))   # (3,)，列表也能被 np.shape 检查
+print(asArray.shape)      # (3,)，一维
+print(rowVec.shape)       # (1, 3)
+print(colVec.shape)       # (3, 1)
+```
+
+一维数组 `(3,)` 既不是行向量也不是列向量，它没有"行"这一维。
+
+## 1.3 向量加法
+
+`+` 对数组是**逐元素相加**，只有维数（形状）匹配才能相加：
+
+```python
+v = np.array([4, 5, 6])
+w = np.array([7, 8, 9])
+print(v + w)   # [11 13 15]
+```
+
+## 1.4 广播运算（broadcasting）
+
+行向量加列向量时触发广播：两个向量的每个元素之间重复同一个运算，生成一个矩阵（形状取两维的最大值）：
+
+```python
+v1 = np.array([[1, 2, 3]])        # (1, 3) 行向量
+w1 = np.array([[4], [5]])         # (2, 1) 列向量
+print(v1 + w1)
+# [[5 6 7]
+#  [6 7 8]]    结果形状 (2, 3)
+```
+
+## 1.5 标量与数组的运算
+
+标量乘列表是**重复列表**，标量乘 NumPy 数组是**逐元素乘法**；标量加数组时，标量会加到每一个元素上：
+
+```python
+s = 2
+a = [1, 2, 3]
+b = np.array(a)
+print(s * a)   # [1, 2, 3, 1, 2, 3]，列表被重复
+print(s * b)   # [2 4 6]，逐元素相乘
+print(s + b)   # [3 4 5]，标量加到每个元素
+```
+
+## 1.6 维数与幅度
+
+向量的**维数（dimensionality）**用 `len()` 获得；向量的**几何长度/幅度（magnitude）**用 `np.linalg.norm()` 获得：
+
+```python
+v2 = np.array([1, 2, 5, 6, 7, 9, 11])
+print(len(v2))               # 7，维数
+print(np.linalg.norm(v2))    # 17.804493814764857，幅度（欧氏长度）
+```
+
+## 1.7 向量的点积（np.dot）
+
+点积用 `np.dot()` 计算，**只有数组或行向量 × 列向量**才能算点积，结果形状为 (1,1)：
+
+```python
+v3 = np.array([[1, 4, 5, 2]])          # 行向量 (1, 4)
+w3 = np.array([[-2], [4], [5], [-3]])  # 列向量 (4, 1)
+print(np.dot(v3, w3))
+# [[33]]    = 1×(-2) + 4×4 + 5×5 + 2×(-3)
+```
+
+验证点积的分配律 `v·(w+u) = v·w + v·u`：
+
+```python
+v4 = np.array([1, 4, 5, 3])
+w4 = np.array([5, 6, 2, -4])
+u4 = np.array([-2, 4, 5, -1])
+res1 = np.dot(v4, w4 + u4)
+res2 = np.dot(v4, w4) + np.dot(v4, u4)
+print(res1, res2)   # 63 63，两边相等
+```
+
+## 1.8 Hadamard 乘法
+
+**Hadamard 乘法**指相同维数的向量对应元素分别相乘，用普通 `*` 即可：
+
+```python
+v5 = np.array([[1, 4, 5, 2]])
+w5 = np.array([7, 2, 0, -3])
+print(v5 * w5)   # [[ 7  8  0 -6]]，逐元素相乘
+```
+
+## 1.9 外积（np.outer）
+
+外积由一个行向量和一个列向量创建矩阵，每一项为对应行的元素乘对应列的元素。`np.outer(a, b)` 会把两个输入都展平成 1 维，生成 `len(a) × len(b)` 的矩阵：
+
+```python
+res3 = np.outer(v5, w5)
+print(res3)
+# [[  7   2   0  -3]      第 i 行 = v5 的第 i 个元素 × w5
+#  [ 28   8   0 -12]
+#  [ 35  10   0 -15]
+#  [ 14   4   0  -6]]
+```
+
+---
+
+# 二、向量的几何可视化（matplotlib）
+
+## 2.1 导入与全局设置
+
+```python
+import numpy as np
+import matplotlib.pyplot as plt
+
+# 以下两行用于 Jupyter 环境的显示优化，普通脚本可省略：
+# matplotlib_inline.backend_inline.set_matplotlib_formats('svg')  # 矢量格式输出
+# plt.rcParams.update({'font.size': 14})                           # 全局字号
+```
+
+## 2.2 画向量箭头（plt.arrow）
+
+`plt.arrow(x, y, dx, dy, ...)` 的前四个参数表示：从起点 `(x, y)` 开始，沿 X 轴延伸 `dx`、沿 Y 轴延伸 `dy`。
+
+```python
+v = np.array([1, 2])
+w = np.array([4, -6])
+vPlusW = v + w      # (5, -4)
+vMinusW = v - w     # (-3, 8)
+
+plt.figure(figsize=(6, 6))   # 创建画布：宽 6 英寸、高 6 英寸
+
+a1 = plt.arrow(0, 0,              # 起点为原点
+               v[0], v[1],        # 延伸分量为 v
+               head_width=.3,     # 箭头头部宽度
+               width=.1,          # 箭身粗细
+               color='k',         # 黑色（'k' 代表 black）
+               length_includes_head=True)   # 总长含箭头尖，终点精确停在向量末端
+a2 = plt.arrow(v[0], v[1], w[0], w[1],      # w 从 v 的终点出发（三角形法则）
+               head_width=.3, width=.1,
+               color=[.5, .5, .5],          # RGB 灰度：中灰色
+               length_includes_head=True)
+a3 = plt.arrow(0, 0, vPlusW[0], vPlusW[1],  # 合向量从原点出发
+               head_width=.3, width=.1,
+               color=[.8, .8, .8],          # 浅灰色
+               length_includes_head=True)
+```
+
+颜色既可用单字母（`'k'` 黑等），也可用 `[r, g, b]` 灰度值列表（如 `[.5,.5,.5]` 中灰、`[.8,.8,.8]` 浅灰）。
+
+## 2.3 美化与输出
+
+```python
+plt.grid(linestyle='--', linewidth=.5)   # 背景网格：虚线、粗细 0.5
+plt.axis('square')                       # 横纵比强制 1:1，几何图形不失真
+plt.axis([-6, 6, -6, 6])                 # 显示范围 [xmin, xmax, ymin, ymax]
+plt.legend([a1, a2, a3], ['v', 'w', 'v+w'])   # 图例：箭头对象与标签一一对应
+plt.title('Vectors v, w, and v+w')       # 标题
+plt.savefig('练习2_1a.png', dpi=300)     # 保存为 300 dpi 的 PNG
+plt.show()                               # 在屏幕/Notebook 中显示
+```
+
+## 2.4 案例：v+w 与 v−w 的几何效果
+
+以 v=(1,2)、w=(4,-6) 为例（对应教材图 2-2）：
+
+- **v+w**：把 w 的起点平移到 v 的终点，从原点指向 w 终点的向量即为 v+w=(5,-4)（平行四边形/三角形法则）。
+- **v−w**：w 从原点画出，从 w 的终点画 v−w，其终点落在 v 上——因为 w+(v−w)=v。两图共用 2.2/2.3 的画法，只差第二个箭头的起点和图例标签（`['v', 'w', 'v-w']`）。
+
+---
+
+# 附录：常用函数与语法速查
+
+## A. NumPy 向量运算速查
+
+| 操作 | 写法 | 说明 |
+|------|------|------|
+| 创建数组 | `np.array([...])` | 一维 `(n,)`、行 `(1,n)`、列 `(n,1)` |
+| 查看形状 | `a.shape` / `np.shape(a)` | 返回 (行, 列) 元组 |
+| 加法 | `v + w` | 逐元素，形状需匹配 |
+| 广播 | `(1,n) + (n,1)` → `(n,n)` | 元素两两重复运算 |
+| 标量运算 | `s * b` / `s + b` | 作用到每个元素 |
+| 维数 | `len(v)` | 元素个数 |
+| 幅度 | `np.linalg.norm(v)` | 欧氏长度 |
+| 点积 | `np.dot(v, w)` | 行×列，结果为 (1,1) |
+| Hadamard | `v * w` | 对应元素相乘 |
+| 外积 | `np.outer(v, w)` | 展平后生成 len(v)×len(w) 矩阵 |
+
+## B. matplotlib 绘图速查
+
+| 函数 | 作用 |
+|------|------|
+| `plt.figure(figsize=(w,h))` | 创建画布（英寸） |
+| `plt.arrow(x, y, dx, dy, ...)` | 画向量箭头 |
+| `head_width` / `width` | 箭头宽 / 箭身粗细 |
+| `length_includes_head=True` | 箭头尖计入向量终点 |
+| `color='k'` / `[r,g,b]` | 单字母色 / RGB 灰度 |
+| `plt.grid(linestyle, linewidth)` | 背景网格 |
+| `plt.axis('square')` | 横纵比 1:1 |
+| `plt.axis([xmin,xmax,ymin,ymax])` | 显示范围 |
+| `plt.legend([对象], [标签])` | 图例 |
+| `plt.title(...)` | 标题 |
+| `plt.savefig(名, dpi=300)` | 保存到文件 |
+| `plt.show()` | 显示图像 |
+
+## C. 易错点备忘
+
+- 一维数组 `(3,)` 与行向量 `(1,3)`、列向量 `(3,1)` 形状不同，做点积/广播时行为不同。
+- 只有维数匹配才能相加；不匹配时可能触发广播而不是报错，注意结果形状。
+- 标量 × 列表是重复列表，标量 × 数组才是逐元素相乘。
+- `np.dot` 要求行向量 × 列向量（或两个一维等长数组），形状不对会报错。
+- `np.outer` 会先把两个输入都展平成 1 维再计算。
+- `plt.arrow` 不加 `length_includes_head=True` 时，箭头尖会超出向量真实终点。
+- 画几何图务必 `plt.axis('square')`，否则横纵比例失真、角度看起来不对。
+- `plt.axis('square')` 与 `plt.axis([...范围])` 是两次独立调用，范围以后一次为准。
+- `savefig` 要在 `show` 之前调用，某些环境下 show 后画布会被清空。
+- `matplotlib_inline` 只在 Jupyter 中可用，普通 .py 脚本运行时要去掉相关两行。
