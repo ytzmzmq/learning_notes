@@ -122,6 +122,63 @@ print(res3)
 #  [ 14   4   0  -6]]
 ```
 
+## 1.10 案例：自定义向量范数算法（练习 2）
+
+向量范数即几何长度：元素平方求和再开方。NumPy 支持逐元素运算，不需要写循环——`v ** 2` 自动平方每个元素，再配合 `np.sum()` 求和、`np.sqrt()` 开方：
+
+```python
+def norm_calculate(v):
+    return np.sqrt(np.sum(v ** 2))
+
+u1 = np.array([3, 0, 4, -4, 2, -2])
+print(norm_calculate(u1))     # 7.0
+print(np.linalg.norm(u1))     # 7.0，与官方函数一致
+```
+
+**批量验证**：用随机向量在 1~100 维上逐一对比自定义算法与 `np.linalg.norm()`，只要有一次不一致就把标志位置 False 并 `break`。浮点数比较用 `np.isclose()` 而不是 `==`：
+
+```python
+np.random.seed(44)                 # 固定随机种子，保证可复现
+dimensions = range(1, 101)
+all_passed = True                  # 状态标志位
+for dim in dimensions:
+    v_1d = np.random.randn(dim)    # 生成长度为 dim 的随机一维数组
+    val_custom = norm_calculate(v_1d)
+    val_numpy = np.linalg.norm(v_1d)
+    if not np.isclose(val_custom, val_numpy):
+        print(f"测试失败！维度 {dim}, 自定义={val_custom}, 官方={val_numpy}")
+        all_passed = False
+        break
+if all_passed:
+    print("完美！1~100 维测试结果完全一致！")
+```
+
+练习目的是练习数组下标和把公式转成代码；实际项目中直接用 `np.linalg.norm()` 更简单。
+
+## 1.11 案例：单位向量（练习 3）
+
+单位向量是与原向量方向相同、长度为 1 的向量：把向量除以它自己的范数。
+
+```python
+def unit_vector(vector):
+    norm = np.linalg.norm(vector)
+    return vector / norm
+
+v1 = np.array([3, 2, -3, 1, -1])
+res1 = unit_vector(v1)
+print(res1)          # [ 0.61237244  0.40824829 -0.61237244  0.20412415 -0.20412415]
+print(np.sum(res1 ** 2))   # 1.0，单位向量各元素平方和为 1
+```
+
+**输入零向量会怎样？** 范数为 0，除以 0 时 NumPy 不抛异常，而是发出 RuntimeWarning 并返回全 `nan` 的向量：
+
+```python
+print(unit_vector(np.zeros((4, 1))))
+# RuntimeWarning: invalid value encountered in divide
+# [[nan] [nan] [nan] [nan]]
+```
+健壮写法是在函数里判断 `if norm == 0:` 并做处理（如返回原向量或抛出异常）。
+
 ---
 
 # 二、向量的几何可视化（matplotlib）
@@ -204,6 +261,10 @@ plt.show()                               # 在屏幕/Notebook 中显示
 | 点积 | `np.dot(v, w)` | 行×列，结果为 (1,1) |
 | Hadamard | `v * w` | 对应元素相乘 |
 | 外积 | `np.outer(v, w)` | 展平后生成 len(v)×len(w) 矩阵 |
+| 自定义范数 | `np.sqrt(np.sum(v ** 2))` | 等价于 `np.linalg.norm(v)` |
+| 单位向量 | `v / np.linalg.norm(v)` | 零向量会得到全 nan |
+| 浮点比较 | `np.isclose(a, b)` | 代替 `==` 判断浮点数 |
+| 随机数组 | `np.random.randn(n)` | n 个标准正态随机数 |
 
 ## B. matplotlib 绘图速查
 
@@ -234,3 +295,7 @@ plt.show()                               # 在屏幕/Notebook 中显示
 - `plt.axis('square')` 与 `plt.axis([...范围])` 是两次独立调用，范围以后一次为准。
 - `savefig` 要在 `show` 之前调用，某些环境下 show 后画布会被清空。
 - `matplotlib_inline` 只在 Jupyter 中可用，普通 .py 脚本运行时要去掉相关两行。
+- `v ** 2` 是逐元素平方，NumPy 里对整组数据运算不需要写 for 循环。
+- 单位向量 = 向量除以自身范数；零向量范数为 0，除法会得 nan 并告警（不报错），需先判断零向量。
+- 比较两个浮点结果是否相等要用 `np.isclose(a, b)`，直接用 `==` 可能因精度误差误判。
+- 随机测试要 `np.random.seed(固定值)` 才能保证结果可复现。
