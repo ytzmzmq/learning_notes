@@ -226,6 +226,73 @@ res2 = (np.linalg.norm(v1)) ** 2    # 8.71599758935434
 ```
 两者在浮点精度内相等（末位可能有微小差异，比较时应用 `np.isclose()` 而非 `==`）。
 
+## 1.15 案例：点积的交换律（练习 7）
+
+点积是可交换的（commutative）：a·b = b·a，即 aTb = bTa。
+
+**一维向量**直接用 `np.dot` 验证，两种顺序的差为 0：
+
+```python
+v1 = np.random.randn(5)
+v2 = np.random.randn(5)
+print(np.dot(v1, v2) - np.dot(v2, v1))   # 0.0
+```
+
+**列向量 (5,1)** 不能直接 `np.dot`——矩阵乘法要求前者的列数等于后者的行数。此时用 Hadamard 乘法逐元素相乘再求和来计算点积：
+
+```python
+u1 = np.random.randn(5, 1)   # 5 行 1 列的列向量
+u2 = np.random.randn(5, 1)
+aTb = np.sum(u1 * u2)        # Hadamard 乘法 + 求和
+bTa = np.sum(u2 * u1)
+print(aTb - bTa)             # 0.0
+```
+
+原理：点积就是对应元素乘积的和，加法满足交换律，所以 aTb = Σaᵢbᵢ = Σbᵢaᵢ = bTa。
+
+## 1.16 案例：向量的垂直投影（练习 8）
+
+问题：已知向量 a 和 b，在 a 方向上找一点 βa，使它与 b 最接近。思路：b−βa 与 a 垂直（点积为 0），即 a·b − β(a·a) = 0，解得：
+
+**β = a·b / a·a**
+
+```python
+a = np.array([1, 2])
+b = np.array([3, 1])
+
+beta = np.dot(a, b) / np.dot(a, a)   # 1.0
+proj_point = beta * a                # [1. 2.]，投影点
+c = b - beta * a                     # [ 2. -1.]，b 到投影点的垂直分量
+```
+几何图（a、b、b−βa 三个箭头加垂线虚线）见 2.5 的绘图技巧。
+
+## 1.17 案例：正交分解（练习 9）
+
+把任意向量 t 沿 r 方向分解为平行分量与垂直分量：
+
+- 平行分量：t∥r = βr，其中 β = t·r / r·r（与 1.16 的投影同理）
+- 垂直分量：t⊥r = t − t∥r
+
+```python
+np.random.seed(33)
+t = np.random.randn(2)      # [-0.31885351 -1.60298056]
+r = np.random.randn(2)      # [-1.53521787 -0.57040089]
+
+beta = np.dot(t, r) / np.dot(r, r)   # 0.5233854305606638
+t_para_r = beta * r                  # [-0.80351067 -0.29853952]
+t_perp_r = t - t_para_r              # [ 0.48465716 -1.30444104]
+```
+
+两项验证：
+
+```python
+# 验证 1：两个分量的和还原为原向量 t
+print(np.allclose(t, t_para_r + t_perp_r))   # True
+
+# 验证 2：两分量相互正交（点积接近机器精度 0）
+print(np.dot(t_para_r, t_perp_r))            # -5.55e-17
+```
+
 ---
 
 # 二、向量的几何可视化（matplotlib）
@@ -290,6 +357,35 @@ plt.show()                               # 在屏幕/Notebook 中显示
 - **v+w**：把 w 的起点平移到 v 的终点，从原点指向 w 终点的向量即为 v+w=(5,-4)（平行四边形/三角形法则）。
 - **v−w**：w 从原点画出，从 w 的终点画 v−w，其终点落在 v 上——因为 w+(v−w)=v。两图共用 2.2/2.3 的画法，只差第二个箭头的起点和图例标签（`['v', 'w', 'v-w']`）。
 
+## 2.5 中文与标注绘图技巧（练习 8-9 的图像）
+
+**显示中文与负号**：matplotlib 默认字体不含中文，需设为 Windows 自带黑体（SimHei）；负号显示为方块时关闭 unicode_minus：
+
+```python
+plt.rcParams['font.sans-serif'] = ['SimHei']   # 全局中文字体
+plt.rcParams['axes.unicode_minus'] = False     # 正常显示坐标轴负号 '-'
+```
+
+**用 plt.plot 画线段**：`plt.plot([x1, x2], [y1, y2], 'k--', linewidth=1.2)` 画从 (x1,y1) 到 (x2,y2) 的黑色虚线——第一个列表是 x 序列、第二个是 y 序列。练习 8 用它画 b 到投影点的垂线，练习 9 用粗虚线画出两个分解分量。
+
+**用 plt.text 在坐标处标注文字**：
+
+```python
+plt.text(a[0]+.1, a[1], 'a', fontsize=18)            # 在向量端点旁标 a
+plt.text(x, y, r'(b-βa)', fontsize=18)               # r 前缀保留原始字符
+```
+
+**图例混用与取 [0]**：`plt.arrow` 返回箭头对象，但 `plt.plot` 返回的是**列表**，放进 legend 前要取 `[0]`：
+
+```python
+c = plt.plot([0, t_para_r[0]], [0, t_para_r[1]], 'k--', linewidth=3)
+d = plt.plot([0, t_perp_r[0]], [0, t_perp_r[1]], 'k--', linewidth=3)
+plt.legend([a, b, c[0], d[0]], [r'$t$', r'$r$', r'$t_{\parallel r}$', r'$t_{\perp r}$'])
+```
+图例标签支持 LaTeX 风格（如 `r'$t_{\parallel r}$'` 显示下标）。
+
+**保存到子目录**：`plt.savefig('figures/练习2_8.png', dpi=300)` 可存入子目录，但 `figures/` 目录必须已存在，否则报错。
+
 ---
 
 # 附录：常用函数与语法速查
@@ -314,6 +410,9 @@ plt.show()                               # 在屏幕/Notebook 中显示
 | 范数平方 | `np.dot(v, v)` == `norm(v)**2` | 向量与自身点积 |
 | 保类型零数组 | `np.zeros(shape, dtype=v.dtype)` | 默认是 float64 |
 | 浮点比较 | `np.isclose(a, b)` | 代替 `==` 判断浮点数 |
+| 整体比较 | `np.allclose(a, b)` | 逐元素 isclose 后取与 |
+| 垂直投影 | `β = np.dot(a,b)/np.dot(a,a)` | 投影点为 `β*a` |
+| 正交分解 | `t∥ = βr`，`t⊥ = t − t∥` | t∥⊥t⊥，和为 t |
 | 随机数组 | `np.random.randn(n)` | n 个标准正态随机数 |
 
 ## B. matplotlib 绘图速查
@@ -332,6 +431,10 @@ plt.show()                               # 在屏幕/Notebook 中显示
 | `plt.title(...)` | 标题 |
 | `plt.savefig(名, dpi=300)` | 保存到文件 |
 | `plt.show()` | 显示图像 |
+| `plt.rcParams['font.sans-serif']=['SimHei']` | 中文字体（黑体） |
+| `plt.rcParams['axes.unicode_minus']=False` | 正常显示负号 |
+| `plt.plot([x1,x2],[y1,y2],'k--')` | 画线段/虚线，返回列表 |
+| `plt.text(x, y, '标签', fontsize=n)` | 在坐标处标注文字 |
 
 ## C. 易错点备忘
 
@@ -353,3 +456,8 @@ plt.show()                               # 在屏幕/Notebook 中显示
 - `shape[0]` 是行数、`shape[1]` 是列数；二维数组索引 `a[i, j]` 是第 i 行第 j 列。
 - `np.dot(v, v)` 等于范数的平方，但浮点结果末位可能有微小差异，比较用 `np.isclose()`。
 - 任意幅度向量 = 目标幅度 × 单位向量，即 `m * v / norm(v)`；对零向量同样会得到 nan。
+- `np.dot` 不能直接用于两个同形状列向量 `(n,1)`（矩阵乘法维度不匹配），要用 Hadamard 乘法 + `np.sum` 计算点积。
+- `plt.plot` 的返回值是列表，传给 `plt.legend` 前要取 `[0]`；`plt.arrow` 返回单个对象不用取。
+- `savefig` 存到子目录（如 `figures/xx.png`）时，该目录必须已存在，否则报 FileNotFoundError。
+- 中文标注要设 `font.sans-serif=['SimHei']`，坐标轴负号变方块时加 `axes.unicode_minus=False`。
+- 正交分量的点积是接近机器精度的极小数（如 -5.55e-17），不是精确的 0，判断正交用 `np.allclose`/阈值比较。
