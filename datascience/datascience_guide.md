@@ -179,6 +179,53 @@ print(unit_vector(np.zeros((4, 1))))
 ```
 健壮写法是在函数里判断 `if norm == 0:` 并做处理（如返回原向量或抛出异常）。
 
+## 1.12 案例：任意幅度的向量（练习 4）
+
+在单位向量的基础上再乘以目标幅度，就得到方向与输入向量相同、幅度为给定值的向量：
+
+```python
+def create_mag_vector(vector, magnitude):
+    norm = np.linalg.norm(vector)
+    return magnitude * vector / norm
+
+v1 = np.array([1, 0, 0])
+print(create_mag_vector(v1, 3))     # [3. 0. 0.]
+
+m = 10
+v2 = np.array([0, 3, 4])            # 原幅度为 5
+res1 = create_mag_vector(v2, m)
+print(res1, np.linalg.norm(res1))   # [0. 6. 8.] 10.0，方向不变、幅度变为 10
+```
+
+## 1.13 案例：for 循环实现行向量转列向量（练习 5）
+
+不用 `np.transpose()` 或 `v.T`，用循环逐元素搬运。关键点是 `shape` 的维度含义与二维数组的 `a[i, j]` 索引：
+
+```python
+def transpose_vector(rowVec):
+    dimension = rowVec.shape[1]     # shape[0] 是行数（垂直方向），shape[1] 是列数（水平方向）
+    colVec = np.zeros((dimension, 1), dtype=rowVec.dtype)
+    for i in range(dimension):
+        colVec[i, 0] = rowVec[0, i] # 行向量第 0 行第 i 列 → 列向量第 i 行第 0 列
+    return colVec
+
+v1 = np.array([[1, 2, 3, 4, 5]])    # 行向量 (1, 5)
+print(transpose_vector(v1))         # (5, 1) 列向量 [[1][2][3][4][5]]
+```
+
+注意 `np.zeros()` 不指定 dtype 时默认创建**浮点数组**；这里用 `dtype=rowVec.dtype` 继承原数组类型，否则整数向量转置后会变成浮点数。
+
+## 1.14 案例：向量与自身的点积 = 范数的平方（练习 6）
+
+一个有趣的事实：`v·v` 等于范数的平方（元素平方和正是点积本身）：
+
+```python
+v1 = np.random.randn(10)            # 随机向量
+res1 = np.dot(v1, v1)               # 8.715997589354338
+res2 = (np.linalg.norm(v1)) ** 2    # 8.71599758935434
+```
+两者在浮点精度内相等（末位可能有微小差异，比较时应用 `np.isclose()` 而非 `==`）。
+
 ---
 
 # 二、向量的几何可视化（matplotlib）
@@ -263,6 +310,9 @@ plt.show()                               # 在屏幕/Notebook 中显示
 | 外积 | `np.outer(v, w)` | 展平后生成 len(v)×len(w) 矩阵 |
 | 自定义范数 | `np.sqrt(np.sum(v ** 2))` | 等价于 `np.linalg.norm(v)` |
 | 单位向量 | `v / np.linalg.norm(v)` | 零向量会得到全 nan |
+| 任意幅度向量 | `m * v / np.linalg.norm(v)` | 同方向、幅度为 m |
+| 范数平方 | `np.dot(v, v)` == `norm(v)**2` | 向量与自身点积 |
+| 保类型零数组 | `np.zeros(shape, dtype=v.dtype)` | 默认是 float64 |
 | 浮点比较 | `np.isclose(a, b)` | 代替 `==` 判断浮点数 |
 | 随机数组 | `np.random.randn(n)` | n 个标准正态随机数 |
 
@@ -299,3 +349,7 @@ plt.show()                               # 在屏幕/Notebook 中显示
 - 单位向量 = 向量除以自身范数；零向量范数为 0，除法会得 nan 并告警（不报错），需先判断零向量。
 - 比较两个浮点结果是否相等要用 `np.isclose(a, b)`，直接用 `==` 可能因精度误差误判。
 - 随机测试要 `np.random.seed(固定值)` 才能保证结果可复现。
+- `np.zeros()` 默认创建 float64 数组，要保留原类型必须传 `dtype=原数组.dtype`。
+- `shape[0]` 是行数、`shape[1]` 是列数；二维数组索引 `a[i, j]` 是第 i 行第 j 列。
+- `np.dot(v, v)` 等于范数的平方，但浮点结果末位可能有微小差异，比较用 `np.isclose()`。
+- 任意幅度向量 = 目标幅度 × 单位向量，即 `m * v / norm(v)`；对零向量同样会得到 nan。
