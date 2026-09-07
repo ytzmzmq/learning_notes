@@ -1,6 +1,6 @@
 # 数据科学实践指南
 
-> 基于《数据科学实践与Python应用》第 2 章"向量"的学习实践整理（已完结：正文 + 练习 2-1 至 2-10），分为"NumPy 数组与向量运算"与"matplotlib 向量的几何可视化"两大部分，文末附第 2 章练习汇总。运行环境：numpy 2.3、matplotlib 3.10。
+> 基于《数据科学实践与Python应用》的学习实践整理：第 2 章"向量"已完结（正文 + 练习 2-1 至 2-10），第 3 章"线性组合与子空间"进行中。分为"NumPy 数组与向量运算"、"matplotlib 向量的几何可视化"与"线性组合与子空间"三大部分，文末附各章练习汇总。运行环境：numpy 2.3、matplotlib 3.10、plotly 6.3。
 
 ---
 
@@ -442,6 +442,148 @@ plt.legend([a, b, c[0], d[0]], [r'$t$', r'$r$', r'$t_{\parallel r}$', r'$t_{\per
 
 ---
 
+# 三、线性组合与子空间（第 3 章）
+
+## 3.1 线性加权组合
+
+使用标量乘法和加法，把各向量乘各自的权重再加起来，得到一个向量：
+
+```python
+l1, l2, l3 = 2, 3, -1
+v1 = np.array([4, 5, 2])
+v2 = np.array([3, -1, 4])
+v3 = np.array([-3, 2, 6])
+res1 = l1 * v1 + l2 * v2 + l3 * v3   # [20  5 10]
+```
+
+## 3.2 基底与基底绘图
+
+同一批点在不同基底下的坐标不同。标准基（S）是沿坐标轴的单位向量；非标准基（T）是任意两个线性无关的向量。绘图时用 `plt.plot` 画线段表示基底、用标记画点：
+
+```python
+p = (3, 1)
+q = (-6, 2)
+
+plt.figure(figsize=(6, 6))
+plt.plot(p[0], p[1], 'ko', markerfacecolor='k', markersize=10, label='Point p')  # 圆点
+plt.plot(q[0], q[1], 'ks', markerfacecolor='k', markersize=10, label='Point q')  # 方点
+
+# 第一组基底：标准基
+plt.plot([0, 0], [0, 1], 'k', linewidth=3, label='Basis S')
+plt.plot([0, 1], [0, 0], 'k', linewidth=3)
+
+# 第二组基底：非标准基（虚线）
+plt.plot([0, 3], [0, 1], 'k--', linewidth=3, label='Basis T')
+plt.plot([0, -3], [0, 1], 'k--', linewidth=3)
+
+plt.axis('square')
+plt.grid(linestyle='--', color=[.8, .8, .8])
+plt.xlim([-7, 7])
+plt.ylim([-7, 7])
+plt.legend()
+```
+标记格式串如 `'ko'`（黑圆点）、`'ks'`（黑方点）、`'ro'`（红圆点）：字母 k/r 是颜色、o/s 是形状。
+
+## 3.3 案例：for 循环 + zip 实现线性组合（练习 3-1）
+
+把标量放进一个列表、向量放进另一个列表，用 `zip` 按顺序配对遍历，用 `np.zeros()` 初始化输出向量累加：
+
+```python
+l = [l1, l2, l3]
+v = [v1, v2, v3]
+res1 = np.zeros(len(v1))          # 初始化输出向量（注意默认是 float）
+
+for i, j in zip(l, v):            # 多个列表/序列按顺序配对组合
+    res1 += i * j
+
+print(res1)   # [20.  5. 10.]，与直接公式结果一致
+```
+`zip(l, v)` 把两个序列按顺序两两配对，`for i, j in ...` 一次取出每对元素。
+
+## 3.4 zip() 的陷阱（练习 3-2）
+
+`zip` 在两个序列**长度不一致时会静默截断**到较短的那个——多出来的标量/向量被悄悄丢弃，程序"假装成功"，这是极其危险的：
+
+```python
+l.append(l1)                      # 标量比向量多一个
+res2 = np.zeros(len(v1))
+for i, j in zip(l, v):            # 静默忽略多出的标量，结果"看起来对"
+    res2 += i * j
+```
+
+两种防御写法：
+
+```python
+for i, j in zip(l, v, strict=True):   # 长度不一致时抛 ValueError
+    res2 += i * j
+
+for i in range(len(l)):               # 显式按索引遍历，越界会报错
+    res2 += l[i] * v[i]
+```
+
+## 3.5 案例：子空间中的随机点（练习 3-3）
+
+子空间包含基向量任意线性加权组合的结果。**R2 中一个基向量**张成一条直线：用均匀分布抽 100 个随机标量，乘以基向量得到 100 个点：
+
+```python
+A = np.array([1, 3])
+xlim = [-4, 4]
+
+scalars = np.random.uniform(low=xlim[0], high=xlim[1], size=100)  # 100 个均匀随机标量
+B = []
+for k in scalars:
+    B.append(k * A)
+
+plt.figure(figsize=(6, 6))
+for m in B:
+    plt.plot(m[0], m[1], 'ro', markersize=4)   # 红圆点
+plt.grid(linestyle='--', linewidth=.5)
+plt.axis('square')
+plt.xlim(xlim)
+plt.ylim(xlim)
+plt.text(-4.5, 4.5, "A)", fontweight="bold", fontsize=18)  # 图编号标签
+```
+这些点全部落在直线 y=3x 上（已验证）。
+
+**R3 中两个基向量**张成一个平面，需要 100×2 个随机标量；用 `points[i, :]` 行切片逐行写入坐标：
+
+```python
+v1 = np.array([3, 5, 1])
+v2 = np.array([0, 2, 2])
+scalars2 = np.random.uniform(low=xlim[0], high=xlim[1], size=(100, 2))  # 100 行 2 列
+
+points = np.zeros((100, 3))
+for i in range(len(scalars2)):
+    points[i, :] = v1 * scalars2[i, 0] + v2 * scalars2[i, 1]   # 第 i 行 = 两个基向量的线性组合
+```
+`points[i, :]` 中 `i` 是行号、`:` 表示该行所有列；`scalars2[i, 0]`/`scalars2[i, 1]` 是第 i 行的两个标量。这 100 个点落在 v1、v2 张成的平面上（已用法向量验证 n·p≈0）。
+
+## 3.6 plotly 三维交互散点
+
+三维点用 matplotlib 不直观，改用 plotly 的交互式 3D 散点（可单击拖动旋转坐标轴）：
+
+```python
+import plotly.graph_objects as go   # 简写 go，类似 np 之于 NumPy
+
+fig = go.Figure(                    # 总容器：管理外观、边距、标题，装载数据图层
+    data=[
+        go.Scatter3d(               # 三维散点图层（Trace）
+            x=points[:, 0],         # 提取所有点的 X 坐标
+            y=points[:, 1],
+            z=points[:, 2],
+            mode='markers',         # 仅画散点不连线
+            marker=dict(size=6, color='black'),
+        )
+    ]
+)
+fig.update_layout(margin=dict(l=0, r=0, b=0, t=0))  # 四周留白设为 0
+fig.write_html('figures/Figure3_3b.html')           # 导出交互式网页
+fig.show()                                          # 浏览器/Notebook 中弹出
+```
+`points[:, 0]` 是列切片（所有行第 0 列）。绘图库的通用设计：数据自己知道长度，API 不向用户索要长度，只校验 x/y/z 长度一致。
+
+---
+
 # 附录：常用函数与语法速查
 
 ## A. NumPy 向量运算速查
@@ -468,6 +610,9 @@ plt.legend([a, b, c[0], d[0]], [r'$t$', r'$r$', r'$t_{\parallel r}$', r'$t_{\per
 | 垂直投影 | `β = np.dot(a,b)/np.dot(a,a)` | 投影点为 `β*a` |
 | 正交分解 | `t∥ = βr`，`t⊥ = t − t∥` | t∥⊥t⊥，和为 t |
 | 随机数组 | `np.random.randn(n)` | n 个标准正态随机数 |
+| 均匀随机 | `np.random.uniform(low, high, size)` | size 可为 (行,列) |
+| 配对遍历 | `zip(l, v)` / `zip(l, v, strict=True)` | 按序两两配对；strict 校验等长 |
+| 行/列切片 | `a[i, :]` / `a[:, j]` | 第 i 行 / 第 j 列 |
 
 ## B. matplotlib 绘图速查
 
@@ -489,6 +634,11 @@ plt.legend([a, b, c[0], d[0]], [r'$t$', r'$r$', r'$t_{\parallel r}$', r'$t_{\per
 | `plt.rcParams['axes.unicode_minus']=False` | 正常显示负号 |
 | `plt.plot([x1,x2],[y1,y2],'k--')` | 画线段/虚线，返回列表 |
 | `plt.text(x, y, '标签', fontsize=n)` | 在坐标处标注文字 |
+| `plt.xlim([a,b])` / `plt.ylim([a,b])` | 限定坐标轴显示范围 |
+| 标记格式串 | `'ko'`/`'ks'`/`'ro'` | 颜色+形状（k黑 r红；o圆 s方） |
+| `go.Figure(data=[...])` | plotly 总容器（画布盒子） |
+| `go.Scatter3d(x,y,z,mode='markers')` | plotly 三维散点图层 |
+| `fig.write_html(名)` | 导出交互式网页 |
 
 ## C. 易错点备忘
 
@@ -516,6 +666,10 @@ plt.legend([a, b, c[0], d[0]], [r'$t$', r'$r$', r'$t_{\parallel r}$', r'$t_{\per
 - 中文标注要设 `font.sans-serif=['SimHei']`，坐标轴负号变方块时加 `axes.unicode_minus=False`。
 - 正交分量的点积是接近机器精度的极小数（如 -5.55e-17），不是精确的 0，判断正交用 `np.allclose`/阈值比较。
 - 完整性检验要选独立的理论约束：由 `t − t∥` 算出的 t⊥ 做加和检验恒成立（假阳性），正交性、尺度不变性这类检验才能真正捕获公式 Bug。
+- `zip` 长度不一致时**静默截断**到较短序列（"假装成功"），标量/向量个数不匹配不会报错；要校验用 `zip(..., strict=True)` 或改用 `range(len(...))`。
+- `np.zeros()` 初始化累加向量默认是 float，与整数向量相加结果也是 float。
+- 子空间随机点：R2 一个基向量张成直线、R3 两个基向量张成平面；标量个数 = 点数 × 基向量个数。
+- plotly 的 `data` 参数是图层列表；`fig.show()` 依赖浏览器/Notebook 环境，脚本中可用 `write_html` 导出。
 
 ---
 
@@ -584,3 +738,25 @@ plt.legend([a, b, c[0], d[0]], [r'$t$', r'$r$', r'$t_{\parallel r}$', r'$t_{\per
 - **有效检验 1（正交性）**：t∥·t⊥ 与 t⊥·r 在正确代码下 ≈ 0（机器精度），缺陷代码下显著非 0（实测 -1.5077 / -1.6215）。
 - **有效检验 2（尺度不变性）**：投影只与 r 的方向有关，与 r 长度无关——r 放大 2 倍投影应不变；缺陷代码的投影随之放大。
 - 完整解答代码见 1.18。核心启发：编写科学计算/机器学习代码时，"程序没有报错"≠"数学逻辑正确"，要用基于理论几何约束（垂直度、尺度不变性、范数不变性等）的测试用例保障严谨性。
+
+---
+
+# 第 3 章练习汇总（练习 3-1 至 3-3）
+
+## 练习 3-1：for 循环实现线性加权组合
+
+> 改写线性加权组合的代码，将所有标量置于一个列表、向量作为另一个列表的元素，然后用 for 循环实现线性加权组合，用 `np.zeros()` 初始化输出向量，确认与直接公式得到相同结果。
+
+答案要点与代码见 3.3：`zip(l, v)` 配对遍历累加，结果 [20. 5. 10.] 与直接公式一致。
+
+## 练习 3-2：zip() 未必比 range() 好
+
+> 若新增加的向量是 R4 中的向量而不是 R3 中的，会发生什么？若增加的标量个数比向量多会如何？
+
+答案要点见 3.4：`zip` 会静默截断到较短序列（"假装成功"，极其危险）；用 `zip(..., strict=True)` 抛 ValueError 或改用 `for i in range(len(l))` 显式索引来暴露长度不匹配。
+
+## 练习 3-3：绘制子空间中的随机点
+
+> (a) 定义包含一个向量 [1,3] 的集合，从 -4 到 4 均匀抽取 100 个随机标量，乘以基向量得到 100 个子空间中的随机点并绘制。(b) 重复上述过程，但使用 R3 中的两个向量 [3,5,1] 和 [0,2,2]（需 100×2 个随机标量），得到的随机点会出现在一个平面上，建议用 plotly 绘制。
+
+答案要点与代码见 3.5（matplotlib 二维）与 3.6（plotly 三维）：(a) 点落在直线 y=3x 上（成图 `练习3_3a.png`）；(b) 点落在两基向量张成的平面上（交互图 `Figure3_3b.html`）。
