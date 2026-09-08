@@ -1,6 +1,6 @@
 # 数据科学实践指南
 
-> 基于《数据科学实践与Python应用》的学习实践整理：第 2 章"向量"已完结（正文 + 练习 2-1 至 2-10），第 3 章"线性组合与子空间"进行中。分为"NumPy 数组与向量运算"、"matplotlib 向量的几何可视化"与"线性组合与子空间"三大部分，文末附各章练习汇总。运行环境：numpy 2.3、matplotlib 3.10、plotly 6.3。
+> 基于《数据科学实践与Python应用》的学习实践整理：第 2 章"向量"已完结（正文 + 练习 2-1 至 2-10），第 3 章"线性组合与子空间"、第 4 章"K-means 聚类"进行中。分为"NumPy 数组与向量运算"、"matplotlib 向量的几何可视化"、"线性组合与子空间"与"K-means 聚类"四大部分，文末附各章练习汇总。运行环境：numpy 2.3、matplotlib 3.10、plotly 6.3。
 
 ---
 
@@ -584,6 +584,122 @@ fig.show()                                          # 浏览器/Notebook 中弹�
 
 ---
 
+# 四、K-means 聚类（第 4 章）
+
+K-means 的本质是一个**交替迭代的优化过程**，核心闭环由 5 步构成：① 随机选 k 个样本作初始质心 → ② 广播批量算每个样本到每个质心的欧氏距离平方 → ③ `np.argmin` 让每个点站到最近质心的簇 → ④ 布尔索引过滤各簇样本、求均值推选新质心 → ⑤ 把 ②③ 打包进大循环直到质心几乎不再移动（收敛）。
+
+## 4.1 准备数据：合成三个高斯簇
+
+围绕 3 个预设中心加正态扰动，每簇 50 个点；沿列拼接成 (2,150) 再转置为 (150,2) 的数据矩阵：
+
+```python
+nPerClust = 50          # 每簇 50 个样本，3 簇共 150
+blur = 1.0              # 高斯噪声标准差（簇的分散程度）
+A, B, C = [1, 1], [-3, 1], [3, 3]   # 三个真实簇中心
+
+a = [A[0] + np.random.randn(nPerClust) * blur,
+     A[1] + np.random.randn(nPerClust) * blur]
+# b、c 同理围绕 B、C 生成
+
+data = np.transpose(np.concatenate((a, b, c), axis=1))   # (2,150) → (150,2)
+print(data.shape)   # (150, 2)
+```
+
+## 4.2 随机初始化质心
+
+用 `np.random.choice` 不重复地抽 k 个行号，再用高级索引 `data[ridx, :]` 把整行坐标取出组成质心矩阵：
+
+```python
+k = 3
+np.random.seed(32)
+ridx = np.random.choice(range(len(data)), k, replace=False)  # 不重复抽 3 个行号
+centroid = data[ridx, :]      # 高级索引：行号是"门牌号"，每行自带 [x, y] → (3, 2)
+```
+
+## 4.3 计算欧氏距离平方（广播 + 逐元素平方 + 横向求和）
+
+`data` 是 (150,2)、`centroid[ci, :]` 是 (1,2)，本不能直接相减，靠**广播**把质心重复 150 次再减：
+
+```python
+dists = np.zeros((data.shape[0], k))        # 预开辟 (150, 3) 的距离表
+for ci in range(k):
+    dists[:, ci] = np.sum((data - centroid[ci, :]) ** 2, axis=1)
+```
+
+**维度链条**（手绘草稿打通的数据流向）：(150,2) − (1,2) 广播 → (150,2)；`** 2` 逐元素平方仍是 (150,2)；`np.sum(..., axis=1)` 沿列横向求和 → (150,)；外层 for 循环逐列填入 → (150,3)。
+
+**黄金组合**：`** 2` 负责平方，`np.sum(..., axis=1)` 负责把同一行的 x² 与 y² 横向加起来，二者各司其职。面对大规模矩阵批量求行向量范数时，"逐元素平方 + axis=1 求和"比点乘更快（详见 4.7 的术语辨析）。
+
+## 4.4 关联到最近的质心
+
+`np.argmin(dists, axis=1)` 横向看每一行，挑出 3 个距离里最小的那个**编号**，得到 (150,) 的标签数组（元素都是 0/1/2）：
+
+```python
+group_idx = np.argmin(dists, axis=1)
+```
+
+## 4.5 重新计算质心（类内均值）
+
+`group_idx == ki` 是**布尔掩码**，逐一比对 150 个点的簇标签生成一串布尔值；逗号前选行、逗号后选列：
+
+```python
+for ki in range(k):
+    centroid[ki, :] = [np.mean(data[group_idx == ki, 0]),   # 本簇所有点的 x 均值
+                       np.mean(data[group_idx == ki, 1])]   # 本簇所有点的 y 均值
+```
+
+## 4.6 收敛大循环
+
+把 4.3→4.4→4.5 三步**作为一个整体**包进循环；每轮先备份旧质心（必须 `.copy()`），轮末比对新旧质心的移动距离，小于阈值就停：
+
+```python
+max_iterations = 100     # 防意外无限循环
+tolerance = 1e-4         # 质心移动距离平方小于 0.0001 视为收敛
+for iteration in range(max_iterations):
+    old_centroid = centroid.copy()      # 必须 .copy()，否则只是引用别名
+
+    dists = np.zeros((data.shape[0], k))          # 第 2 步：距离
+    for ci in range(k):
+        dists[:, ci] = np.sum((data - centroid[ci, :]) ** 2, axis=1)
+    group_idx = np.argmin(dists, axis=1)          # 第 3 步：站队
+    for ki in range(k):                           # 第 4 步：均值更新
+        centroid[ki, :] = [np.mean(data[group_idx == ki, 0]),
+                           np.mean(data[group_idx == ki, 1])]
+
+    shift = np.sum((centroid - old_centroid) ** 2)   # 质心总移动距离平方
+    if shift < tolerance:
+        print(f'在第 {iteration + 1} 次迭代后，质心已彻底停止移动。')
+        break
+```
+实测（seed 32）：第 6 次迭代收敛，最终质心 ≈ (-3.09, 1.00)、(0.69, 0.95)、(3.01, 2.97)，与真实中心 B、A、C 吻合。
+
+## 4.7 复盘：关键失误与方法论
+
+**术语辨析——叉乘 vs 逐元素平方 vs 点乘：**
+- 叉乘（×）：只用于 3D 空间找法向量；向量与自身叉乘永远等于 0。
+- 逐元素平方（`** 2`）：每个格子自己乘自己，算完列数不变，加号还没出现。
+- 点乘（·）：确实自带求和，但直接对 150×2 矩阵做点乘会膨胀出 150×150 的冗余矩阵，效率是灾难。
+- 结论：`** 2` + `np.sum(..., axis=1)` 各司其职才是正解。
+
+**最隐蔽的杀手——运算符优先级（漏括号）：**
+
+```python
+# 错误：漏了减法外面的括号，** 优先级高于 -，被算成 data - (centroid ** 2)
+dists[:, ci] = np.sum(data - centroid[ci, :] ** 2, axis=1)
+# 正确：
+dists[:, ci] = np.sum((data - centroid[ci, :]) ** 2, axis=1)
+```
+致命连锁反应（已复现）：① 算出的不是距离，距离矩阵出现**负数**（实测最小 -17.71）；② `argmin` 把极小负数判为"全场最近"，150 个点全被吸进同一个簇（各簇点数变成 [0, 150, 0] 这类分布）；③ 空簇点数为 0，第 4 步除以 0 得 NaN，并发出 `RuntimeWarning: Mean of empty slice`。
+**方法论：见"负"知错**——几何/距离计算里控制台打印出负数，必须立刻警惕公式或括号写错。调试时若发现"所有随机种子都崩成同一种分布"这类数学上不可能的现象，说明是语法 Bug 而非运气问题。
+
+**循环逻辑误区：** 第 5 步不是把第 4 步代码复制再跑一遍，而是【距离 → 站队 → 均值更新】三步整体包进大循环；停止条件靠 `old_centroid = centroid.copy()` 备份比对新旧质心，而不是单纯重复算一次均值。
+
+**深浅拷贝：** `old_centroid = centroid.copy()` 必须带 `.copy()`，否则只是指针别名，旧质心会跟着新质心一起变，收敛判断永远为 0 而提前退出。
+
+**广播替代嵌套循环：** 本实现只用一个 3 次的循环加 NumPy 广播，就替代了初学者 150×3×2=900 次的繁琐嵌套循环。
+
+---
+
 # 附录：常用函数与语法速查
 
 ## A. NumPy 向量运算速查
@@ -613,6 +729,12 @@ fig.show()                                          # 浏览器/Notebook 中弹�
 | 均匀随机 | `np.random.uniform(low, high, size)` | size 可为 (行,列) |
 | 配对遍历 | `zip(l, v)` / `zip(l, v, strict=True)` | 按序两两配对；strict 校验等长 |
 | 行/列切片 | `a[i, :]` / `a[:, j]` | 第 i 行 / 第 j 列 |
+| 不重复抽样 | `np.random.choice(range(n), k, replace=False)` | 抽 k 个不重复索引 |
+| 高级索引 | `data[ridx, :]` | 按行号列表取整行 |
+| 布尔掩码 | `data[mask, 0]` | 逗号前选行、逗号后选列 |
+| 取最小索引 | `np.argmin(d, axis=1)` | 每行最小值的列编号 |
+| 拼接转置 | `np.transpose(np.concatenate((a,b,c), axis=1))` | (2,N) → (N,2) |
+| 深拷贝 | `x.copy()` | 独立副本，非引用别名 |
 
 ## B. matplotlib 绘图速查
 
@@ -670,6 +792,10 @@ fig.show()                                          # 浏览器/Notebook 中弹�
 - `np.zeros()` 初始化累加向量默认是 float，与整数向量相加结果也是 float。
 - 子空间随机点：R2 一个基向量张成直线、R3 两个基向量张成平面；标量个数 = 点数 × 基向量个数。
 - plotly 的 `data` 参数是图层列表；`fig.show()` 依赖浏览器/Notebook 环境，脚本中可用 `write_html` 导出。
+- 距离/范数计算结果出现**负数**必是公式或括号写错（见"负"知错）；`**` 优先级高于 `-`，`np.sum((data - c) ** 2, axis=1)` 的减法括号不能漏，漏了会算成 `data - c**2` 产生负距离。
+- 负距离会让 `argmin` 把全部点吸进同一簇，空簇求均值产生 NaN 并发 `Mean of empty slice` 告警。
+- 收敛判断备份质心必须 `centroid.copy()`，否则旧质心是引用别名、shift 恒为 0 提前退出。
+- K-means 第 5 步是把"距离→站队→均值"三步整体包进循环，不是复制第 4 步再跑一遍。
 
 ---
 
