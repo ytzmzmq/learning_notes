@@ -10,6 +10,7 @@ learning_notes/
 ├── python/        ← Python notes
 ├── pytorch/       ← PyTorch notes
 ├── datascience/   ← 数据科学实践与Python应用 notes
+├── r/             ← R / tidyverse notes（张敬信《R语言编程》）
 └── ...            ← (more subjects to come)
 ```
 
