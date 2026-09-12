@@ -6,7 +6,7 @@
 > **tidyverse 核心包**：dplyr 1.2.1、tibble 3.3.1、tidyr 1.3.2、readr 2.2.0、ggplot2 4.0.3。
 > **依赖链**：rlang 1.2.0、vctrs 0.7.3、tidyselect 1.2.1、pillar 1.11.1、lifecycle 1.0.5、cli 3.6.6、glue 1.8.1、magrittr 2.0.5；RStudio（rstudioapi 0.19.0）。
 >
-> 整理进度：已归档 **第一章 基础语法**（1.1 常用操作、1.2 数据结构 · 向量、1.3 数据结构 · 矩阵与多维数组）。
+> 整理进度：已归档 **第一章 基础语法**（1.1 常用操作、1.2 数据结构 · 向量、1.3 数据结构 · 矩阵与多维数组、1.4 数据结构 · 列表）。
 
 ---
 
@@ -415,6 +415,216 @@ a1["r2", "c1", "k3"]     # 第 2 行、第 1 列、第 3 层的元素
 
 > 直觉类比：矩阵是"一张表"，三维数组就是"一叠表"。R 里很多对象本质上是多维数组，理解它有助于后面理解数据框与 `apply` 家族。
 
+## 1.4 数据结构 · 列表
+
+**列表（list）与向量最大的区别是：它不要求元素同型。** 一个列表里可以装数值、字符串、向量，甚至另一个列表。它最大的好处是能把多个不同类型的对象"打包"成一个整体，再按位置或名字分别取出。后面要学的数据框，本质上就是一个"各成分等长的列表"。
+
+### 1.4.1 创建列表
+
+用 `list()` 创建，创建时即可给每个成分起名字。
+
+```r
+l1 <- list(A = 1, B = c("yt", "ox", "nabo"), C = 3e4)
+l1
+# $A
+# [1] 1
+#
+# $B
+# [1] "yt"   "ox"   "nabo"
+#
+# $C
+# [1] 30000
+```
+
+也可以先创建、再命名：
+
+```r
+names(l1) <- c("A", "B", "C")
+```
+
+> 直觉类比：向量是"一排同款格子"，列表是"一排任意大小的抽屉"。注意 `l1` 只有 **3 个成分**，但 `l1$B` 那一格里装的是一个长度 3 的向量——成分的"个数"和内容的"长度"是两回事。
+
+### 1.4.2 提取子集与内容
+
+列表有两套提取语法，**返回的东西完全不同**，这是列表最容易混淆的地方。
+
+```r
+l1[2]                # 用 [ ] 取子集 → 返回的还是一个列表
+l1[c("A", "C")]      # 可以用向量一次取多个
+
+l1$B                 # 用 $ 按名字取出成分的内容
+l1[[3]]              # 用 [[ ]] 按位置取出成分的内容
+```
+
+`[[ ]]` 相比 `$` 有一个关键优势——**能接受变量传参**：
+
+```r
+x <- "B"
+l1[[x]]     # 等价于 l1$B
+l1$x        # ✗ 错误：$ 不会把 x 当变量，只会去找名叫 "x" 的成分
+```
+
+> 记忆点：`[ ]` 是"连盒子一起拿"，返回列表；`$` 和 `[[ ]]` 是"打开盒子拿东西"，返回成分本身。想用变量指定名字，只能用 `[[ ]]`。
+
+### 1.4.3 为列表成分赋值
+
+```r
+l1$D <- 0.5        # 给不存在的成分赋值 → 列表自动新增一个成分
+l1
+
+l1[c("A", "D")] <- list(A = "WZT", D = 1.5)   # 批量赋值（右侧必须用 list() 包起来）
+l1
+
+l1["D"] <- NULL    # 赋值为 NULL → 移除该成分
+l1
+```
+
+- 批量赋值时右侧**必须**是 `list(...)`；直接写向量会被拆开，结构对不上。
+- 删除成分用 `<- NULL`：`l1["D"] <- NULL` 或 `l1[["D"]] <- NULL` 都可以。
+
+### 1.4.4 列表与向量的互转
+
+```r
+y <- c(a = "yt", b = 2.6)     # 注意：c() 是"向量"构造函数
+y                             # → a="yt"  b="2.6"
+typeof(y)                     # → "character"
+
+l2 <- as.list(y)              # 向量 → 列表：每个元素独立成一个成分
+l2
+# $a
+# [1] "yt"
+# $b
+# [1] "2.6"
+
+y2 <- unlist(l2)              # 列表 → 向量：压回一维
+typeof(y2[2])                 # → "character"
+```
+
+> ⚠️ 这里有个容易误读的点：`typeof(y2[2])` 是 `"character"`，**并不是 `unlist()` 造成的**。`c(a = "yt", b = 2.6)` 在**创建向量时**就已经把 `2.6` 强制转成了 `"2.6"`——因为向量要求所有元素同型。`as.list()` / `unlist()` 只是在列表和向量之间搬运，没有改变类型。
+>
+> 想真正观察 `unlist()` 的类型强转，得用**直接构造的混合类型列表**：
+
+```r
+l3 <- list(a = "yt", b = 2.6)   # 列表不要求同型，b 仍是数值
+l3$b                            # → 2.6（数值）
+
+unlist(l3)                      # → "yt" "2.6"：到这一步才发生强转
+```
+
+- 强转遵循"向下兼容"：`character > double > integer > logical`，只要有一个是字符型，整条结果都会变成字符型。
+- 这也是 `unlist()` 要慎用的原因——它会**静默丢类型**，`2.6` 一旦变成 `"2.6"` 就不能再做数值运算了。
+
+### 1.4.5 purrr：筛选类函数
+
+`purrr` 是 tidyverse 家族里专门做列表 / 函数式编程的包。先准备一份"半结构化的用户数据"（层级嵌套、含 API 超时产生的 `NULL`、混有测试账号）：
+
+```r
+library(purrr)
+
+raw_users <- list(
+  user1 = list(name = "Alice", status = "active", score = 85, is_test = FALSE,
+               contact = list(city = "北京", phone = "1380001")),
+  user2 = NULL,   # API 超时 / 用户不存在，返回了空值
+  user3 = list(name = "Bob", status = "inactive", score = 42, is_test = FALSE,
+               contact = list(city = "上海", phone = "1390002")),
+  user4 = list(name = "Test_User", status = "active", score = 99, is_test = TRUE,
+               contact = list(city = "广州", phone = "1370003")),
+  user5 = list(name = "David", status = "active", score = 90, is_test = FALSE,
+               contact = list(city = "深圳", phone = "1360004"))
+)
+```
+
+**`compact()`：删掉空元素**
+
+```r
+clean_users <- compact(raw_users)
+names(clean_users)   # → "user1" "user3" "user4" "user5"（user2 这个 NULL 被删掉）
+```
+
+> ⚠️ `compact()` 删的是 **`NULL` 和长度为 0 的元素**，**不会删 `NA`**——`NA` 是一个"有值"的缺失标记，不算空。
+
+**`discard()` / `keep()`：按条件删 / 留**
+
+```r
+real_users <- discard(.x = clean_users,
+                      .p = \(single_user) single_user$is_test == TRUE)
+names(real_users)   # → "user1" "user3" "user5"（user4 是测试账号，被丢掉）
+
+vip_users <- keep(.x = real_users,
+                  .p = \(single_user) single_user$score >= 80)
+names(vip_users)    # → "user1" "user5"
+```
+
+- `.p` 是一个**返回 TRUE / FALSE 的函数**（叫"谓词"），purrr 会把它依次作用到每个成分上。
+- `discard()` 丢掉 `.p` 为 `TRUE` 的；`keep()` 留下 `.p` 为 `TRUE` 的——**两者正好相反**。
+- `\(single_user) ...` 是 **R 4.1+** 的匿名函数简写，完全等价于 `function(single_user) ...`。
+
+`discard` / `keep` 的本质是"把循环藏起来"：你只写判断逻辑，循环与挑拣由 purrr 代劳。用 Python 的写法对照：
+
+```python
+def check_test(single_user):
+    return single_user["is_test"] == True
+
+real_users = []
+for single_user in clean_users:
+    if not check_test(single_user):   # discard：为 True 就扔，为 False 才留
+        real_users.append(single_user)
+```
+
+> 对照记忆：`keep` ≈ Python 的 `filter`；`discard` ≈ `filter` 取反。R 里没有 Python 那样的列表推导式，`purrr` 就是用来填这个坑的。
+
+### 1.4.6 purrr：提取与重组函数
+
+**`pluck()`：按层级深层取值**
+
+```r
+city_user1 <- pluck(.x = vip_users, "user1", "contact", "city")
+city_user1   # → "北京"
+```
+
+- `pluck(list, "a", "b", "c")` 等价于 `list[["a"]][["b"]][["c"]]`，但写法短得多。
+- 关键好处：**取一个不存在的层级不会报错，而是安全返回 `NULL`**（用 `[[ ]]` 链式取值则会在中途断掉）。
+
+**`append()`：在列表末尾追加元素**
+
+```r
+new_user <- list(name = "Eva", status = "active", score = 95, is_test = FALSE,
+                 contact = list(city = "杭州", phone = "1350005"))
+
+vip_users_updated <- append(vip_users, list(user6 = new_user))
+names(vip_users_updated)   # → "user1" "user5" "user6"
+```
+
+- `append()` 是 **base R 的函数**（不属于 purrr），对列表同样适用。
+- 第二个参数要**用 `list(user6 = ...)` 包起来**：直接传 `new_user` 会把它的 5 个成分当作 5 个新元素拼进去，而不是作为一个整体追加。
+
+**`flatten()`：摊平一层嵌套**
+
+```r
+page_1 <- list(user1 = list(name = "Alice", score = 85, is_test = FALSE),
+               user2 = list(name = "Test_User", score = 99, is_test = TRUE))
+page_2 <- list(user3 = list(name = "Bob", score = 42, is_test = FALSE),
+               user4 = list(name = "David", score = 90, is_test = FALSE))
+
+api_results <- list(page_1, page_2)   # 分页结果：列表套列表
+all_users <- flatten(api_results)     # 撕掉"页"这一层，4 个用户合并到同一层
+length(all_users)                     # → 4
+```
+
+- `flatten()` **只摊平一层**：`api_results` 是"页 → 用户"两层，摊平后变成"用户"一层；若还有更深的嵌套，需要再调用一次。
+- ⚠️ **版本提示**：`flatten()` 在 **purrr 1.0.0（2022-12）** 中已被 **`list_flatten()`** 取代（superseded）。老写法仍能运行，但官方不再推荐、只做关键 bug 修复，新代码建议直接用 `list_flatten()`。
+
+purrr 常用函数速览：
+
+| 函数 | 作用 | 备注 |
+|---|---|---|
+| `compact(x)` | 删掉 `NULL` 与长度 0 的元素 | **不删 `NA`** |
+| `discard(.x, .p)` | 删掉 `.p` 为 `TRUE` 的元素 | `.p` 是谓词函数 |
+| `keep(.x, .p)` | 保留 `.p` 为 `TRUE` 的元素 | 与 `discard` 相反 |
+| `pluck(.x, ...)` | 按层级取值 | 缺失层级安全返回 `NULL` |
+| `flatten(.x)` | 摊平一层 | 已被 `list_flatten()` 取代 |
+| `list_flatten(.x)` | 摊平一层（新版写法） | purrr 1.0.0 起推荐 |
+
 ---
 
 # 附录：常用函数与语法速查
@@ -479,6 +689,10 @@ a1["r2", "c1", "k3"]     # 第 2 行、第 1 列、第 3 层的元素
 | `m[m > 4]` | 逻辑取元素，**返回向量（按列序）** |
 | `a[i, j, k]` | 三维数组按"行、列、层"定位 |
 
+| `l$name` | 列表按名字取**成分内容** | `$` 不接受变量 |
+| `l["name"]` | 列表按名字取**子集**（返回列表） | 与 `l$name` 结果类型不同 |
+| `l[[i]]` / `l[["name"]]` | 列表按位置 / 名字取**成分内容** | 支持变量传参 |
+
 ## E. 矩阵与数组函数
 
 | 函数 | 作用 | 备注 |
@@ -491,6 +705,31 @@ a1["r2", "c1", "k3"]     # 第 2 行、第 1 列、第 3 层的元素
 | `as.vector(m)` | 矩阵 / 数组转一维向量 | **按列读取** |
 | `t(m)` | 转置 | 行列互换 |
 | `%*%` | 矩阵乘法 | 要求左列数 = 右行数 |
+
+## F. 列表函数（base R）
+
+| 函数 / 语法 | 作用 | 备注 |
+|---|---|---|
+| `list(...)` | 创建列表 | 成分可不同类型、不同长度 |
+| `names(l)` | 取 / 设成分名 | 赋 `NULL` 可移除名字 |
+| `l$name` | 取成分**内容** | `$` 不接受变量 |
+| `l["name"]` | 取**子集**（仍是列表） | 与 `l$name` 返回类型不同 |
+| `l[["name"]]` / `l[[i]]` | 取成分**内容** | 支持变量传参 |
+| `l["name"] <- NULL` | 移除成分 | `<- NULL` 即删除 |
+| `as.list(v)` | 向量 → 列表 | 逐元素拆成成分 |
+| `unlist(l)` | 列表 → 向量 | 类型"向下兼容"，**会静默强转** |
+| `append(x, list(...))` | 末尾追加元素 | 第二参数要包 `list()` |
+
+## G. purrr 列表函数
+
+| 函数 | 作用 | 备注 |
+|---|---|---|
+| `compact(x)` | 删 `NULL` 与长度 0 的元素 | **不删 `NA`** |
+| `discard(.x, .p)` | 删掉 `.p` 为 `TRUE` 的元素 | `.p` 是谓词函数 |
+| `keep(.x, .p)` | 保留 `.p` 为 `TRUE` 的元素 | 与 `discard` 相反 |
+| `pluck(.x, ...)` | 按层级深层取值 | 缺失层级安全返回 `NULL` |
+| `flatten(.x)` | 摊平一层 | 已被 `list_flatten()` 取代 |
+| `list_flatten(.x)` | 摊平一层（新版写法） | purrr 1.0.0 起推荐 |
 
 ## Z. 易错点备忘
 
@@ -509,3 +748,11 @@ a1["r2", "c1", "k3"]     # 第 2 行、第 1 列、第 3 层的元素
 - **`m[m > 4]` 返回的是向量**，不是矩阵，而且元素按**列**顺序排列。
 - **矩阵下标的逗号不能省**：`m[2:3]`（按一维取第 2~3 个元素）≠ `m[2:3, ]`（取第 2~3 行的所有列）。
 - **`as.vector()` 按列读取**，不是按行。
+- **列表 `[ ]` 与 `[[ ]]` 返回的东西不同**：`l[1]` 返回**列表**（子集），`l[[1]]` 返回**成分本身**。
+- **`$` 不接受变量**：`l$x` 只会去找名为 "x" 的成分；想用变量指定名字，必须写 `l[[x]]`。
+- **批量给列表成分赋值要用 `list()`**：`l[c("A","D")] <- list(A = …, D = …)`，右侧直接写向量会出错。
+- **`c()` 在创建向量时就已强转类型**：`c(a = "yt", b = 2.6)` 里的 `2.6` 建出来就是 `"2.6"`，不是 `unlist()` 干的。
+- **`unlist()` 会静默强转类型**：混合类型按 `character > double > integer > logical` 统一，数值可能变成字符串而失去运算能力。
+- **`append()` 追加列表元素要包一层 `list()`**：`append(x, list(new = v))`；直接传会把它拆成多个元素。
+- **`compact()` 不删 `NA`**：只删 `NULL` 与长度为 0 的元素。
+- **`flatten()` 已被 `list_flatten()` 取代**（purrr 1.0.0），老写法仍可用但不再推荐。
