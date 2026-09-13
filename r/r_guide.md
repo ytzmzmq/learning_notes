@@ -6,7 +6,7 @@
 > **tidyverse 核心包**：dplyr 1.2.1、tibble 3.3.1、tidyr 1.3.2、readr 2.2.0、ggplot2 4.0.3。
 > **依赖链**：rlang 1.2.0、vctrs 0.7.3、tidyselect 1.2.1、pillar 1.11.1、lifecycle 1.0.5、cli 3.6.6、glue 1.8.1、magrittr 2.0.5；RStudio（rstudioapi 0.19.0）。
 >
-> 整理进度：已归档 **第一章 基础语法**（1.1 常用操作、1.2 数据结构 · 向量、1.3 数据结构 · 矩阵与多维数组、1.4 数据结构 · 列表）。
+> 整理进度：已归档 **第一章 基础语法**（1.1 常用操作、1.2 数据结构 · 向量、1.3 数据结构 · 矩阵与多维数组、1.4 数据结构 · 列表、1.5 数据结构 · 数据框）。
 
 ---
 
@@ -625,6 +625,220 @@ purrr 常用函数速览：
 | `flatten(.x)` | 摊平一层 | 已被 `list_flatten()` 取代 |
 | `list_flatten(.x)` | 摊平一层（新版写法） | purrr 1.0.0 起推荐 |
 
+## 1.5 数据结构 · 数据框
+
+**数据框（data frame）是 R 里做统计分析最常用的结构**——读进来的表格、拿去建模的样本数据，基本都以数据框的形式存在。
+
+它的本质是**"各个成分等长的列表"**：每一列是一个向量，列名就是列表的成分名；又因为所有列等长，它可以按表格（矩阵）形式展示。所以数据框同时具备两种视角：
+
+- **列表视角** → 用 `$`、`[["name"]]` 按名字取列
+- **矩阵视角** → 用 `df[i, j]` 按"行、列"定位
+
+一句话概括：**由列向量组成、有着矩阵形式的列表**。每一列代表一个变量属性，每一行代表一条样本数据。
+
+tidyverse 全家桶统一基于 **tibble**（class 为 `tbl_df`）这种数据框。tibble 与 base R 的 `data.frame` 兼容（它的 class 实际是 `c("tbl_df", "tbl", "data.frame")`），但设计上"更懒、更挑剔"（官方说法 lazy and surly）：少做自动猜测、多报错，好处是问题暴露得更早、代码更可控。
+
+### 1.5.1 创建数据框
+
+```r
+library(tidyverse)        # 或单独 library(tibble)
+
+persons <- tibble(
+  Name   = c("Ken", "Ashley", "Jennifer"),
+  Gender = c("Male", "Female", "Female"),
+  Age    = c(24, 25, 23),
+  Major  = c("Finance", "Statistics", "Computer Science")
+)
+persons
+# # A tibble: 3 × 3
+#   Name     Gender   Age Major
+#   <chr>    <chr>  <dbl> <chr>
+# 1 Ken      Male      24 Finance
+# 2 Ashley   Female    25 Statistics
+# 3 Jennifer Female    23 Computer Science
+```
+
+tibble 的打印很说明问题：先给**行数 × 列数**（`3 × 3`）和**每列的类型**（`<chr>` 字符 / `<dbl>` 双精度 / `<int>` 整数），再列数据；行数多时默认只显示前 10 行，要看得多写 `print(persons, n = 20)`。
+
+`as_tibble()` 可把 data.frame、matrix，以及**各成分等长的列表**转成 tibble：
+
+```r
+a <- list(A = c(2, 3, 5), B = letters[1:3])
+a_tibble <- as_tibble(a)
+```
+
+- 要求各成分**长度一致**（长度为 1 的会被回收，其它长度不一致直接报错）——这正呼应"数据框是等长列表"的定义。
+- 由矩阵转换时列名会变成 `...1`、`...2`（矩阵本身有列名则沿用）。
+
+重命名用 `rename()`，顺序是 **`新名字 = 旧名字`**：
+
+```r
+rename(persons, First_Name = Name)
+```
+
+- 名字含空格或特殊符号时要用反引号：`` rename(persons, `First Name` = Name) ``。
+- `rename()` 来自 dplyr；base R 的等价写法是 `names(persons)[names(persons) == "Name"] <- "First_Name"`。
+
+### 1.5.2 提取元素与子集
+
+**取一列**——以下三种写法返回的都是**向量**：
+
+```r
+persons$Age          # 按名字取，最常用
+persons[["Age"]]     # 等价；且 [[ ]] 里能放变量
+nm <- "Age"
+persons[[nm]]        # 用变量指定列名（$ 做不到）
+persons[[3]]         # 按位置取第 3 列
+```
+
+**取子集**——返回的仍是**数据框**：
+
+```r
+persons[c("Age", "Major")]    # 按名字取多列
+persons[3:4]                  # 按位置取多列（单下标 = 按列取）
+persons[2, ]                  # 第 2 行（所有列）
+persons[persons$Age <= 24, c("Name", "Age")]   # 逻辑条件筛行 + 指定列
+```
+
+`[i, j]` 的 `i`、`j` 都可以是数值向量、字符向量或逻辑向量，逗号留空表示"该维全选"，规则与矩阵一致。
+
+> ⚠️ tibble 与 data.frame 在这件事上有**三点不同**（tibble 官方文档明确列出）：
+> 1. **`[` 永远返回 tibble**，哪怕只取一列——`persons["Age"]` 是"1 列的数据框"，不是向量。想拿向量要用 `[[`，或显式写 `persons[, "Age", drop = TRUE]`。
+> 2. **`$` 不做部分匹配**：`persons$Ag` 返回 `NULL` 并给警告（data.frame 会"猜"成 `Age`）。列名必须写完整。
+> 3. **不能访问边界之外的行**，也就**不能靠赋值给 tibble 长出新的行**（见 1.5.3）。
+
+### 1.5.3 为数据框赋值
+
+```r
+df <- tibble(id = 1:4,
+             level = c(0, 2, 1, -1),
+             score = c(0.5, 0.2, 0.1, 0.5))
+
+df$score <- c(0.6, 0.4, 0.8, 0.3)   # 整列替换（$ 与 [[ ]] 都可以）
+df$x <- df$level * df$score         # 用已有列计算新列（向量化）
+df$x <- as.character(df$x)          # 整列转换类型
+df
+```
+
+赋值规则有两条硬约束（tibble 比 data.frame 严格）：
+
+- **长度**：只接受**长度为 1**（自动回收）或**与行数等长**的向量，不做任意长度的循环补齐。
+- **类型**：**整列替换**时可以改类型（如上面 `as.character()` 那一步）；**只改某列的一部分**时，新值必须能强转成该列**现有的类型**。
+
+以列表方式给数据框赋值时**只能按列**。要做更灵活的定位赋值，可以走矩阵方式：
+
+```r
+df[1:3, c("id", "x")] <- list(c(2, 3, 4), c("2", "4", "3"))
+```
+
+> ⚠️ 右侧 `list()` 里**每个元素要与选中的行数对齐**（此处选 3 行就给长度 3，或给长度 1 自动回收）。原笔记示例写的是整列长度 `c(2,3,4,5)`——那是"整列"的口径，做**按行子集**赋值时长度对不上。
+
+### 1.5.4 概览与检查
+
+拿到一份数据先"体检"，确认列名、类型、取值范围是否符合预期：
+
+```r
+glimpse(clinical_cohort)   # dplyr：横向列出每列名 + 类型 + 前几个值
+str(clinical_cohort)       # base R：等价的内部结构查看
+summary(clinical_cohort)   # 每列的描述统计
+```
+
+- `glimpse()` / `str()` 主要用来**核对类型**：年龄、体温应当是数值型；`Vaccinated` 若显示成数字，说明原始数据里混进了误填的数字。
+- `summary()`：数值列给最小值、四分位数、中位数、均值、最大值；字符 / 因子列给频数。含缺失值时会在该列末尾单独列出 `NA's` 的个数。
+- 更细的基线表（分组统计、计数、率）后续用 dplyr 的 `group_by()` + `summarise()` 完成。
+
+### 1.5.5 纵向合并：`rbind()` 与 `bind_rows()`
+
+场景：多中心队列研究，各中心上报的字段和格式一致，需要把队列纵向堆起来。
+
+```r
+site_A <- tibble(
+  Patient_ID = c("P001", "P002"),
+  Age        = c(45, 68),
+  Body_Temp  = c(38.5, 39.2),
+  Vaccinated = c("Yes", "No")
+)
+site_B <- tibble(
+  Patient_ID = c("P003", "P004"),
+  Age        = c(29, 73),
+  Body_Temp  = c(37.4, 38.8),
+  Vaccinated = c("Yes", "No")
+)
+
+clinical_cohort <- rbind(site_A, site_B)
+```
+
+- `rbind()` 对数据框是**按列名匹配**的（base R 文档原话：matches columns by name (rather than by position)）——所以两个表的**列顺序不同没关系**，但**列名集合必须完全相同**，多一列少一列都会报错。
+- 行数可以不同，列数必须一致。
+
+tidyverse 的对应写法是 dplyr 的 `bind_rows()`，更宽容也更好用：
+
+```r
+bind_rows(site_A, site_B)                                   # 等价写法
+bind_rows(site_A, tibble(Patient_ID = "P005", Age = 34))    # 列集合不同也可以，缺的填 NA
+bind_rows(list(site_A, site_B))                             # 还能直接吃一个数据框列表
+```
+
+### 1.5.6 列拼接与按主键连接
+
+场景：中心实验室的检测结果（病毒载量、抗体状态）要按列并回患者临床档案。
+
+```r
+lab_biomarkers <- tibble(
+  Viral_Load_Log10 = c(5.3, 7.8, 2.1, 8.4),   # 病毒载量对数值
+  IgG_Positive     = c(TRUE, FALSE, TRUE, FALSE)  # 是否检出中和抗体
+)
+
+full_patient_data <- cbind(clinical_cohort, lab_biomarkers)
+```
+
+> ⚠️ **`cbind()` 按"位置"横向拼接，不做任何匹配**。它的实现就是 `data.frame(..., check.names = FALSE)` 的包装，要求两边**行数相同**，并且**行顺序必须严格一致**——否则会把甲的检验结果贴到乙的病历上。**跨来源的数据拼合不要用 `cbind()`。**
+
+正确做法是**给每条记录一个唯一字段（主键 Primary Key），再按主键做关系连接（Join）**：
+
+```r
+safe_data <- left_join(clinical_data, lab_data, by = "Patient_ID")
+```
+
+dplyr 的四种 join：
+
+| 函数 | 保留哪些行 |
+|---|---|
+| `left_join(x, y, by = ...)` | `x` 的全部行（`y` 中缺失的填 `NA`） |
+| `right_join(x, y, by = ...)` | `y` 的全部行 |
+| `inner_join(x, y, by = ...)` | 两边都匹配上的行 |
+| `full_join(x, y, by = ...)` | 两边的全部行 |
+
+- `by` 指定主键列名；两边列名不一致时写成 `by = c("a" = "b")`。
+- join 靠**值**匹配，与行顺序无关——这才是临床多源数据拼合的正确姿势，也是 `cbind()` 的替代方案。
+
+### 1.5.7 生成属性水平组合：`expand.grid()`
+
+`expand.grid()` 生成若干变量的**所有组合（笛卡儿积）**，常用来先把实验设计表摆出来。
+
+场景：测试 2 种候选药物在 3 个浓度梯度下、分别孵育 24h / 48h 的细胞抑制率。
+
+```r
+plate_design <- expand.grid(
+  Drug            = c("Remdesivir", "Molnupiravir"),  # 2 种候选小分子药
+  Dose_uM         = c(0.1, 1.0, 10.0),                # 3 个浓度梯度（微摩尔）
+  Incubation_Time = c("24h", "48h")                   # 2 种培养时间
+)
+# 共 2 × 3 × 2 = 12 行
+```
+
+- **第一个变量变化最快**（base R 文档原话：The first factors vary fastest）。
+- ⚠️ `expand.grid()` 的默认参数是 `stringsAsFactors = TRUE`，**字符列会被自动转成因子**，而且因子水平按出现顺序排列（不是字母序）。不想转就写 `stringsAsFactors = FALSE`。
+
+tidyverse 的对应写法是 tidyr 的 `expand_grid()`，三点差异更顺手：
+
+```r
+expand_grid(Drug = c("Remdesivir", "Molnupiravir"), Dose_uM = c(0.1, 1.0))
+# 返回 tibble；字符不转因子；默认第一个变量变化"最慢"，输出是有序的
+expand_grid(Drug = c("R", "M"), Dose_uM = c(0.1, 1.0), .vary = "fastest")
+# 想跟 expand.grid() 一致，就用 .vary = "fastest"
+```
+
 ---
 
 # 附录：常用函数与语法速查
@@ -693,6 +907,13 @@ purrr 常用函数速览：
 | `l["name"]` | 列表按名字取**子集**（返回列表） | 与 `l$name` 结果类型不同 |
 | `l[[i]]` / `l[["name"]]` | 列表按位置 / 名字取**成分内容** | 支持变量传参 |
 
+| `df$col` / `df[["col"]]` | 数据框取**一列** | 返回**向量** |
+| `df[[i]]` | 数据框按位置取列 | 返回**向量** |
+| `df[c("a","b")]` / `df[3:4]` | 数据框取**多列** | 返回**数据框**；单下标 = 按列 |
+| `df[i, j]` | 数据框按"行、列"取子集 | `i` 筛行、`j` 选列 |
+| `df[i, ]` / `df[, j]` | 整行 / 整列 | tibble 下 `df[, j]` **仍返回数据框** |
+| `df[, j, drop = TRUE]` | 取单列并降为向量 | 老代码兼容写法 |
+
 ## E. 矩阵与数组函数
 
 | 函数 | 作用 | 备注 |
@@ -731,6 +952,28 @@ purrr 常用函数速览：
 | `flatten(.x)` | 摊平一层 | 已被 `list_flatten()` 取代 |
 | `list_flatten(.x)` | 摊平一层（新版写法） | purrr 1.0.0 起推荐 |
 
+## H. 数据框函数
+
+| 函数 | 作用 | 备注 |
+|---|---|---|
+| `tibble(...)` | 创建 tibble | 不改列名、不把字符转因子 |
+| `data.frame(...)` | 创建传统 data.frame | 会自动转义列名、可转因子 |
+| `as_tibble(x)` | list / matrix / data.frame → tibble | 列表各成分须**等长** |
+| `as.data.frame(tbl)` | tibble → data.frame | 需要"老行为"时用 |
+| `rename(df, new = old)` | 改列名 | dplyr，**新 = 旧** |
+| `names(df)` | 取 / 设列名 | base R |
+| `glimpse(df)` | 横向概览：列名 + 类型 + 前几值 | dplyr |
+| `str(df)` | 结构查看 | base R |
+| `summary(df)` | 每列描述统计 | 数值→分位数，字符→频数 |
+| `nrow(df)` / `ncol(df)` / `dim(df)` | 行数 / 列数 / 形状 | |
+| `rbind(a, b)` | 纵向合并 | 按**列名**匹配，列集合须相同 |
+| `bind_rows(a, b)` | 纵向合并 | dplyr，允许列不同，缺的填 `NA` |
+| `cbind(a, b)` | 横向拼接 | **按位置**，行顺序须一致 |
+| `bind_cols(a, b)` | 横向拼接 | dplyr，同样是按位置 |
+| `left_join(x, y, by=)` | 按主键连接 | 另有 `right_join` / `inner_join` / `full_join` |
+| `expand.grid(...)` | 所有水平组合 | 第一变量变化**最快**；字符→因子 |
+| `expand_grid(...)` | 所有水平组合 | tidyr，返回 tibble、不转因子、第一变量变化**最慢** |
+
 ## Z. 易错点备忘
 
 - **索引从 1 开始**：R 的下标是 1-based，和 Python / C 的 0-based 不同。
@@ -756,3 +999,14 @@ purrr 常用函数速览：
 - **`append()` 追加列表元素要包一层 `list()`**：`append(x, list(new = v))`；直接传会把它拆成多个元素。
 - **`compact()` 不删 `NA`**：只删 `NULL` 与长度为 0 的元素。
 - **`flatten()` 已被 `list_flatten()` 取代**（purrr 1.0.0），老写法仍可用但不再推荐。
+- **数据框是"等长列表"**：`df$col` / `df[["col"]]` 取的是**向量**，`df["col"]` 取的是**数据框**，两者类型不同别混用。
+- **tibble 的 `[` 永远返回 tibble**：`persons["Age"]` 是数据框不是向量；要向量用 `[[` 或 `[, j, drop = TRUE]`。
+- **tibble 的 `$` 不做部分匹配**：`df$Ag` 得到 `NULL` + 警告，列名必须写全（data.frame 会猜成 `Age`）。
+- **tibble 不能靠赋值新增行**：`df[5, ] <- ...` 对 4 行的 tibble 会报错，边界外的行访问不了；加行请用 `bind_rows()`。
+- **tibble 赋值只接受长度 1 或与行数等长**的向量，不做任意长度的循环补齐。
+- **改某列的一部分时，新值必须能强转成该列现有的类型**；只有整列替换才允许换类型。
+- **`rename()` 是"新 = 旧"**：`rename(df, New = Old)`，顺序写反会改错列或报错。
+- **`rbind()` 按列名匹配、要求列集合完全相同**；而 **`cbind()` 按位置拼接、不做匹配**——跨来源的临床/检验数据务必用 `left_join(..., by = "主键")`，绝不要用 `cbind()` 硬拼。
+- **`as_tibble()` 要求列表各成分等长**：长度 1 会被回收，其余不一致直接报错。
+- **`expand.grid()` 默认把字符列转成因子**（`stringsAsFactors = TRUE`），且第一变量变化最快；tidyr 的 `expand_grid()` 恰好相反（不转因子、第一列变化最慢、返回 tibble）。
+- **`summary()` 遇到缺失值**会在该列末尾单独列出 `NA's` 个数，不要以为那一列"没数据"。
